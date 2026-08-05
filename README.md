@@ -1,6 +1,6 @@
-# ethspecify
+# sila-specify
 
-A tool for referencing the Ethereum specifications in clients. This will:
+A tool for referencing the Sila specifications in clients. This will:
 
 - Help developers keep track of specification changes.
 - Help auditors find important functions in client implementations.
@@ -28,25 +28,25 @@ A tool for referencing the Ethereum specifications in clients. This will:
 ### Install
 
 ```
-pipx install ethspecify
+pipx install sila-specify
 ```
 
 ### Initialize
 
-Create a `.ethspecify.yml` config file:
+Create a `.sila-specify.yml` config file:
 
 ```
-$ ethspecify init v1.6.0-beta.0
-Successfully created .ethspecify.yml
+$ sila-specify init v1.6.0-beta.0
+Successfully created .sila-specify.yml
 ```
 
 To also generate a `specrefs/` directory with a YAML file for each
 specification category, use the `--specrefs` flag:
 
 ```
-$ ethspecify init v1.6.0-beta.0 --specrefs
+$ sila-specify init v1.6.0-beta.0 --specrefs
 Initializing specrefs directory: v1.6.0-beta.0
-Successfully created .ethspecify.yml and specrefs/ directory
+Successfully created .sila-specify.yml and specrefs/ directory
 ```
 
 > [!TIP]
@@ -62,7 +62,7 @@ items. For example:
 <spec fn="is_active_validator" fork="phase0" />
 ```
 
-Then run `ethspecify` to populate the tag body with the corresponding
+Then run `sila-specify` to populate the tag body with the corresponding
 specification content:
 
 ```
@@ -99,7 +99,7 @@ their corresponding source file locations.
 ### Configure
 
 The following options can be set in the `specrefs` section of
-`.ethspecify.yml`:
+`.sila-specify.yml`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -111,10 +111,10 @@ The following options can be set in the `specrefs` section of
 ### Update
 
 To update to a newer specification version, change the `version`
-field in `.ethspecify.yml` and run:
+field in `.sila-specify.yml` and run:
 
 ```
-$ ethspecify
+$ sila-specify
 ```
 
 This updates the specification content in the YAML files to match
@@ -190,7 +190,7 @@ Run the check command in CI to verify all specification items are
 properly mapped:
 
 ```
-$ ethspecify check
+$ sila-specify check
 MISSING: constants.BLS_MODULUS#deneb
 ```
 
@@ -198,7 +198,7 @@ MISSING: constants.BLS_MODULUS#deneb
 
 Some specification items may not have a corresponding
 implementation. Add them to the exceptions list in
-`.ethspecify.yml`:
+`.sila-specify.yml`:
 
 ```yaml
 specrefs:
@@ -257,7 +257,7 @@ GitHub. For a tagged `version`, the link uses the tag as the ref:
 
 ```
 <spec ssz_object="BeaconState" fork="gloas" version="v1.7.0-alpha.11" style="link">
-https://github.com/ethereum/consensus-specs/blob/v1.7.0-alpha.11/specs/gloas/beacon-chain.md?plain=1#L411-L468
+https://github.com/sila-chain/consensus-specs/blob/v1.7.0-alpha.11/specs/gloas/beacon-chain.md?plain=1#L411-L468
 </spec>
 ```
 
@@ -265,7 +265,7 @@ For `nightly`, the link uses a commit permalink instead of the tag:
 
 ```
 <spec fn="apply_pending_deposit" fork="electra" style="link">
-https://github.com/ethereum/consensus-specs/blob/99cc40f9317a15ea185690cee6095297fc571dda/specs/electra/beacon-chain.md?plain=1#L960-L975
+https://github.com/sila-chain/consensus-specs/blob/99cc40f9317a15ea185690cee6095297fc571dda/specs/electra/beacon-chain.md?plain=1#L960-L975
 </spec>
 ```
 

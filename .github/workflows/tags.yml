@@ -20,7 +20,7 @@ jobs:
 
       - name: Clone Consensus Specs
         run: |
-          git clone https://github.com/ethereum/consensus-specs.git
+          git clone https://github.com/sila-chain/consensus-specs.git
 
       - name: Get All Tags
         id: get-tags

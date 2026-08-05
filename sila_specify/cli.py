@@ -179,9 +179,9 @@ def list_forks(args):
         print(f"Available presets: {', '.join(pyspec.keys())}")
         return 1
 
-    # Filter out EIP forks
+    # Filter out SIP forks
     forks = sorted(
-        [fork for fork in pyspec[preset].keys() if not fork.startswith("eip")],
+        [fork for fork in pyspec[preset].keys() if not fork.startswith("sip")],
         key=lambda x: (x != "phase0", x)
     )
 
@@ -200,12 +200,12 @@ def list_forks(args):
 
 
 def init(args):
-    """Initialize .ethspecify.yml and optionally a specrefs directory."""
+    """Initialize .sila-specify.yml and optionally a specrefs directory."""
     version = args.version
 
-    # Check if .ethspecify.yml already exists
-    if os.path.exists('.ethspecify.yml'):
-        print("Error: '.ethspecify.yml' already exists.")
+    # Check if .sila-specify.yml already exists
+    if os.path.exists('.sila-specify.yml'):
+        print("Error: '.sila-specify.yml' already exists.")
         print("Please remove the existing config file first.")
         return 1
 
@@ -221,7 +221,7 @@ def init(args):
         try:
             print(f"Initializing specrefs directory: {version}")
             generate_specref_files(output_dir, version, "mainnet")
-            print(f"Successfully created .ethspecify.yml and {output_dir}/ directory")
+            print(f"Successfully created .sila-specify.yml and {output_dir}/ directory")
             return 0
         except Exception as e:
             print(f"Error: {e}")
@@ -229,7 +229,7 @@ def init(args):
     else:
         try:
             generate_config_file(version)
-            print(f"Successfully created .ethspecify.yml")
+            print(f"Successfully created .sila-specify.yml")
             return 0
         except Exception as e:
             print(f"Error: {e}")
@@ -311,7 +311,7 @@ def main():
     )
 
     # Parser for 'init' command
-    init_parser = subparsers.add_parser("init", help="Initialize .ethspecify.yml")
+    init_parser = subparsers.add_parser("init", help="Initialize .sila-specify.yml")
     init_parser.set_defaults(func=init)
     init_parser.add_argument(
         "version",

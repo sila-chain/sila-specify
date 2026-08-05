@@ -4,7 +4,7 @@ Extract a source location map from a consensus-specs checkout.
 
 Scans the markdown spec files for Python code blocks and table rows, mapping
 each spec item (function, class, constant, type) to its file path and line
-range. Combined with the checkout's commit, this lets ethspecify build links
+range. Combined with the checkout's commit, this lets sila-specify build links
 directly to the source on GitHub.
 
 Output JSON shape:

@@ -7,18 +7,18 @@ this_directory = pathlib.Path(__file__).parent
 long_description = (this_directory / "README.md").read_text(encoding="utf-8")
 
 setup(
-    name="ethspecify",
+    name="sila-specify",
     version="0.3.10",
-    description="A utility for processing Ethereum specification tags.",
+    description="A utility for processing Sila specification tags.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Justin Traglia",
     author_email="jtraglia@pm.me",
-    url="https://github.com/ethereum/ethspecify",
+    url="https://github.com/sila-chain/sila-specify",
     packages=find_packages(),
     entry_points={
         "console_scripts": [
-            "ethspecify=ethspecify.cli:main",
+            "sila-specify=sila_specify.cli:main",
         ],
     },
     install_requires=[

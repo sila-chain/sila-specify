@@ -101,13 +101,13 @@ def validate_exception_items(exceptions, version, require_exceptions_have_fork=F
 
 def load_config(directory=None):
     """
-    Load configuration from .ethspecify.yml file in the specified directory.
+    Load configuration from .sila-specify.yml file in the specified directory.
     Returns a dict with configuration values, or empty dict if no config file found.
     """
     if directory is None:
         directory = os.getcwd()
 
-    config_path = os.path.join(directory, '.ethspecify.yml')
+    config_path = os.path.join(directory, '.sila-specify.yml')
 
     if os.path.exists(config_path):
         try:
@@ -135,7 +135,7 @@ def load_config(directory=None):
 
                 return config
         except (yaml.YAMLError, IOError) as e:
-            print(f"Warning: Error reading .ethspecify.yml file: {e}")
+            print(f"Warning: Error reading .sila-specify.yml file: {e}")
             return {}
 
     return {}
@@ -237,7 +237,7 @@ def diff(a_name, a_content, b_name, b_content):
 
 @functools.lru_cache()
 def get_pyspec(version="nightly"):
-    url = f"https://raw.githubusercontent.com/ethereum/ethspecify/main/pyspec/{version}/pyspec.json"
+    url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/main/pyspec/{version}/pyspec.json"
     response = requests.get(url)
     response.raise_for_status()
     return response.json()
@@ -252,7 +252,7 @@ def get_links(version="nightly"):
     or None if no links.json is available for this version (e.g. older tags that
     predate link support).
     """
-    url = f"https://raw.githubusercontent.com/ethereum/ethspecify/main/pyspec/{version}/links.json"
+    url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/main/pyspec/{version}/links.json"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -270,8 +270,8 @@ def get_previous_forks(fork, version="nightly"):
             if key != f"{fork.upper()}_FORK_VERSION":
                 if key != "GENESIS_FORK_VERSION":
                     f = key.split("_")[0].lower()
-                    # Skip EIP forks
-                    if not f.startswith("eip"):
+                    # Skip SIP forks
+                    if not f.startswith("sip"):
                         previous_forks.append(f)
     return list(reversed(previous_forks))
 
@@ -369,10 +369,10 @@ def get_spec(attributes, preset, fork, version="nightly"):
     return spec
 
 def get_latest_fork(version="nightly"):
-    """A helper function to get the latest non-eip fork."""
+    """A helper function to get the latest non-sip fork."""
     pyspec = get_pyspec(version)
     forks = sorted(
-        [fork for fork in pyspec["mainnet"].keys() if not fork.startswith("eip")],
+        [fork for fork in pyspec["mainnet"].keys() if not fork.startswith("sip")],
         key=lambda x: (x != "phase0", x)
     )
     return forks[-1] if forks else "phase0"
@@ -453,9 +453,9 @@ def get_spec_item_history(preset="mainnet", version="nightly"):
     if preset not in pyspec:
         raise ValueError(f"Preset '{preset}' not found")
 
-    # Get all forks in chronological order, excluding EIP forks
+    # Get all forks in chronological order, excluding SIP forks
     all_forks = sorted(
-        [fork for fork in pyspec[preset].keys() if not fork.startswith("eip")],
+        [fork for fork in pyspec[preset].keys() if not fork.startswith("sip")],
         key=lambda x: (x != "phase0", x)
     )
 
@@ -581,7 +581,7 @@ def get_spec_item(attributes, config=None):
         raise Exception("invalid style type")
 
 
-GITHUB_SPEC_REPO = "https://github.com/ethereum/consensus-specs"
+GITHUB_SPEC_REPO = "https://github.com/sila-chain/consensus-specs"
 
 
 def _get_link_item_name(attributes):
@@ -1612,7 +1612,7 @@ def process_generated_specrefs(specrefs, exceptions, version):
 
 def check_coverage(yaml_file, tag_type, exceptions, preset="mainnet", version="nightly"):
     """
-    Check that all spec items from ethspecify have corresponding tags in the YAML file.
+    Check that all spec items from sila-specify have corresponding tags in the YAML file.
     Returns (found_count, total_count, missing_items)
     """
     # Map tag types to history keys
@@ -1627,7 +1627,7 @@ def check_coverage(yaml_file, tag_type, exceptions, preset="mainnet", version="n
         'custom_type': 'custom_types'
     }
 
-    # Get expected items from ethspecify
+    # Get expected items from sila-specify
     history = get_spec_item_history(preset, version)
     expected_pairs = set()
 
@@ -1979,9 +1979,9 @@ def add_missing_spec_items_to_yaml_files(project_dir, config, specrefs_files):
         print(f"Error: Preset '{preset}' not found")
         return
 
-    # Get all forks in chronological order, excluding EIP forks
+    # Get all forks in chronological order, excluding SIP forks
     all_forks = sorted(
-        [fork for fork in pyspec[preset].keys() if not fork.startswith("eip")],
+        [fork for fork in pyspec[preset].keys() if not fork.startswith("sip")],
         key=lambda x: (x != "phase0", x)
     )
 
@@ -2127,8 +2127,8 @@ def add_missing_spec_items_to_yaml_files(project_dir, config, specrefs_files):
 
 
 def generate_config_file(version="nightly"):
-    """Generate a .ethspecify.yml config file in the current directory."""
-    config_path = '.ethspecify.yml'
+    """Generate a .sila-specify.yml config file in the current directory."""
+    config_path = '.sila-specify.yml'
     with open(config_path, 'w') as f:
         f.write(f'version: {version}\n')
         f.write('style: full\n')
@@ -2163,9 +2163,9 @@ def generate_specref_files(output_dir, version="nightly", preset="mainnet"):
     if preset not in pyspec:
         raise ValueError(f"Preset '{preset}' not found")
 
-    # Get all forks in chronological order, excluding EIP forks
+    # Get all forks in chronological order, excluding SIP forks
     all_forks = sorted(
-        [fork for fork in pyspec[preset].keys() if not fork.startswith("eip")],
+        [fork for fork in pyspec[preset].keys() if not fork.startswith("sip")],
         key=lambda x: (x != "phase0", x)
     )
 
@@ -2275,8 +2275,8 @@ def generate_specref_files(output_dir, version="nightly", preset="mainnet"):
                     for line in entry['spec'].split('\n'):
                         f.write(f'    {line}\n')
 
-    # Create .ethspecify.yml config file in current directory
-    config_path = '.ethspecify.yml'
+    # Create .sila-specify.yml config file in current directory
+    config_path = '.sila-specify.yml'
     with open(config_path, 'w') as f:
         f.write(f'version: {version}\n')
         f.write('style: full\n')

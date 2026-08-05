@@ -1,115 +1,210 @@
-name: Tag Update
+name: Native v1.6.1 Artifact Validation
+
+# Validation-only native Sila pyspec/links generation for the v1.6.1 source.
+# Never writes to the repo.
+#
+# Locked plan (hard-locked, no free-form inputs):
+#   MODE=native-v1.6.1-artifact-validation
+#   SOURCE_REPO=sila-chain/consensus-specs
+#   SOURCE_COMMIT=422e6c7f382027d0b6722824395e4d1d3502ec2a
+#   EXPECTED_PYSPEC_SHA256=933d3adcbf0dbb5906fdfc7108f3dad1ad5fbcc4bcaae77b4aab68c0f973895e
+#   EXPECTED_LINKS_SHA256=46b64ba8602717d57ab6e28c97aee6adc5a4ce9e19f8a5edea2ce158defb30f7
+#   EXPECTED_LINKS_ITEM_COUNT=865
+#   GENERATOR=uv run python -m pysetup.generate_specs --all-forks --pyspec-json-output <out>
+#   LINKS_GENERATOR=python3 scripts/generate_links.py <consensus-specs-dir> <out>
+#   DEPENDENCY_INSTALL=uv sync --all-extras --frozen (uv.lock pinned)
+#   DETERMINISM=double generation into $RUNNER_TEMP/sila-specify-v1.6.1/run-{1,2}, cmp byte-identical
+#   ACTION=dispatch only; authorise_generation default NO (no generation without explicit YES)
+#   GATES=determinism pyspec, determinism links, expected pyspec sha256, expected links sha256, links item count
 
 on:
-  schedule:
-    - cron: "0 0 * * *" # Runs nightly at midnight UTC
-  workflow_dispatch: # Allow manual runs
+  workflow_dispatch:
+    inputs:
+      authorise_generation:
+        description: "Set to YES to run the native v1.6.1 artifact validation. Default NO: skipped."
+        required: true
+        default: "NO"
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
-  check-and-process-tags:
+  notice:
+    if: ${{ inputs.authorise_generation != 'YES' }}
     runs-on: ubuntu-latest
+    steps:
+      - name: Skipped (not authorised)
+        run: |
+          echo "Native v1.6.1 artifact validation skipped: authorise_generation != 'YES' (default NO)."
+
+  validate-v1.6.1:
+    if: ${{ inputs.authorise_generation == 'YES' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      SOURCE_REPO: sila-chain/consensus-specs
+      SOURCE_COMMIT: 422e6c7f382027d0b6722824395e4d1d3502ec2a
+      EXPECTED_PYSPEC_SHA256: 933d3adcbf0dbb5906fdfc7108f3dad1ad5fbcc4bcaae77b4aab68c0f973895e
+      EXPECTED_LINKS_SHA256: 46b64ba8602717d57ab6e28c97aee6adc5a4ce9e19f8a5edea2ce158defb30f7
+      EXPECTED_LINKS_ITEM_COUNT: "865"
+      RUN_DIR: ${{ runner.temp }}/sila-specify-v1.6.1
+      UV_VERSION: "0.12.0"
 
     steps:
-      - name: Checkout Current Repository
-        uses: actions/checkout@v3
+      - name: Checkout candidate sila-specify
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          persist-credentials: false
 
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
+      - name: Checkout pinned v1.6.1 consensus-specs source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ env.SOURCE_COMMIT }}
+          path: consensus-specs
+          persist-credentials: false
 
-      - name: Clone Consensus Specs
+      - name: Verify checkout SHA
         run: |
-          git clone https://github.com/sila-chain/consensus-specs.git
-
-      - name: Get All Tags
-        id: get-tags
-        run: |
-          cd consensus-specs
-          git fetch --tags
-          # Get all tags sorted by version
-          TAGS=$(git tag -l | sort -V)
-          echo "tags<<EOF" >> $GITHUB_OUTPUT
-          echo "$TAGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Check Processed Tags
-        id: check-processed
-        run: |
-          # Create pyspec directory if it doesn't exist
-          mkdir -p pyspec
-
-          # Get list of already processed tags
-          PROCESSED_TAGS=$(ls pyspec/ 2>/dev/null || echo "")
-          echo "processed<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROCESSED_TAGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Process New Tags
-        run: |
-          cd consensus-specs
-
-          # Convert multiline strings to arrays
-          readarray -t ALL_TAGS <<< "${{ steps.get-tags.outputs.tags }}"
-          readarray -t PROCESSED <<< "${{ steps.check-processed.outputs.processed }}"
-
-          # Process each tag
-          for tag in "${ALL_TAGS[@]}"; do
-            if [[ -z "$tag" ]]; then continue; fi
-
-            # Skip tags before v1.6.0-alpha.2
-            # Use Python's packaging.version for proper semantic version comparison
-            MIN_VERSION="v1.6.0-alpha.2"
-            SKIP=$(python3 -c "from packaging import version; import sys; min_ver = version.parse('$MIN_VERSION'.lstrip('v')); tag_ver = version.parse('$tag'.lstrip('v')); print('1' if tag_ver < min_ver else '0')")
-            if [[ "$SKIP" == "1" ]]; then
-              echo "Skipping old tag: $tag (before v1.6.0-alpha.2)"
-              continue
-            fi
-
-            # Check if tag was already processed
-            if [[ " ${PROCESSED[@]} " =~ " ${tag} " ]]; then
-              echo "Tag $tag already processed, skipping..."
-              continue
-            fi
-
-            echo "Processing new tag: $tag"
-
-            # Clean up any modifications from previous tag
-            git reset --hard
-            git clean -fd
-
-            # Checkout the tag
-            git checkout "$tag"
-
-            # Apply patch
-            git apply ../write_pyspec_dict.patch
-
-            # Build pyspec
-            make _pyspec
-
-            # Create tag directory and copy files
-            mkdir -p "../pyspec/$tag"
-            cp pyspec.json "../pyspec/$tag/"
-
-            # Build the source location map (links.json) for this tag
-            python3 ../scripts/generate_links.py . "../pyspec/$tag/links.json"
-          done
-
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-          # Remove the cloned consensus-specs directory
-          rm -rf consensus-specs/
-
-          # Check if there are any changes
-          if ! git diff --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-            git add pyspec/
-            git commit -m "Add consensus-specs tagged versions"
-            git push
-          else
-            echo "No new tags detected. Skipping commit."
+          HEAD=$(git -C consensus-specs rev-parse HEAD)
+          echo "CHECKED_OUT_HEAD=${HEAD}"
+          if [ "${HEAD}" != "${SOURCE_COMMIT}" ]; then
+            echo "FAIL_REASON=CHECKOUT_SHA_MISMATCH"
+            exit 1
           fi
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: consensus-specs/pyproject.toml
+
+      - name: Install uv (pinned)
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Sync frozen dependencies (uv.lock)
+        working-directory: consensus-specs
+        run: uv sync --all-extras --frozen
+
+      - name: Generate run-1 (pyspec + links)
+        working-directory: consensus-specs
+        run: |
+          mkdir -p "$RUN_DIR/run-1" "$RUN_DIR/run-2"
+          uv run python -m pysetup.generate_specs --all-forks --pyspec-json-output "$RUN_DIR/run-1/pyspec.json"
+          python3 "$GITHUB_WORKSPACE/scripts/generate_links.py" "$GITHUB_WORKSPACE/consensus-specs" "$RUN_DIR/run-1/links.json"
+
+      - name: Generate run-2 (pyspec + links)
+        working-directory: consensus-specs
+        run: |
+          uv run python -m pysetup.generate_specs --all-forks --pyspec-json-output "$RUN_DIR/run-2/pyspec.json"
+          python3 "$GITHUB_WORKSPACE/scripts/generate_links.py" "$GITHUB_WORKSPACE/consensus-specs" "$RUN_DIR/run-2/links.json"
+
+      - name: Gate pyspec determinism
+        run: |
+          if cmp -s "$RUN_DIR/run-1/pyspec.json" "$RUN_DIR/run-2/pyspec.json"; then
+            echo "PASS determinism pyspec (run-1 == run-2)" >> "$RUN_DIR/validation.txt"
+          else
+            echo "FAIL determinism pyspec (run-1 != run-2)" >> "$RUN_DIR/validation.txt"
+          fi
+
+      - name: Gate links determinism
+        run: |
+          if cmp -s "$RUN_DIR/run-1/links.json" "$RUN_DIR/run-2/links.json"; then
+            echo "PASS determinism links (run-1 == run-2)" >> "$RUN_DIR/validation.txt"
+          else
+            echo "FAIL determinism links (run-1 != run-2)" >> "$RUN_DIR/validation.txt"
+          fi
+
+      - name: Gate expected pyspec sha256
+        run: |
+          ACTUAL=$(sha256sum "$RUN_DIR/run-1/pyspec.json" | awk '{print $1}')
+          if [ "$ACTUAL" = "${EXPECTED_PYSPEC_SHA256}" ]; then
+            echo "PASS expected pyspec sha256 (${EXPECTED_PYSPEC_SHA256})" >> "$RUN_DIR/validation.txt"
+          else
+            echo "FAIL expected pyspec sha256 (${ACTUAL} != ${EXPECTED_PYSPEC_SHA256})" >> "$RUN_DIR/validation.txt"
+          fi
+
+      - name: Gate expected links sha256
+        run: |
+          ACTUAL=$(sha256sum "$RUN_DIR/run-1/links.json" | awk '{print $1}')
+          if [ "$ACTUAL" = "${EXPECTED_LINKS_SHA256}" ]; then
+            echo "PASS expected links sha256 (${EXPECTED_LINKS_SHA256})" >> "$RUN_DIR/validation.txt"
+          else
+            echo "FAIL expected links sha256 (${ACTUAL} != ${EXPECTED_LINKS_SHA256})" >> "$RUN_DIR/validation.txt"
+          fi
+
+      - name: Gate links item count
+        run: |
+          COUNT=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['items']))" "$RUN_DIR/run-1/links.json")
+          if [ "${COUNT}" = "${EXPECTED_LINKS_ITEM_COUNT}" ]; then
+            echo "PASS links item count (${COUNT})" >> "$RUN_DIR/validation.txt"
+          else
+            echo "FAIL links item count (${COUNT} != ${EXPECTED_LINKS_ITEM_COUNT})" >> "$RUN_DIR/validation.txt"
+          fi
+
+      - name: Compare generated artifacts with tracked v1.6.1 pair
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUT_ROOT: ${{ runner.temp }}/sila-specify-v1.6.1
+        run: |
+          set -euo pipefail
+          cmp "$OUT_ROOT/run-1/pyspec.json" "pyspec/v1.6.1/pyspec.json"
+          cmp "$OUT_ROOT/run-1/links.json" "pyspec/v1.6.1/links.json"
+          {
+            echo "TRACKED_PYSPEC_MATCH=YES"
+            echo "TRACKED_LINKS_MATCH=YES"
+            echo "TRACKED_PAIR_MATCH=YES"
+          } >> "$OUT_ROOT/validation.txt"
+
+      - name: Write SHA256SUMS
+        run: |
+          cd "$RUN_DIR"
+          sha256sum run-1/pyspec.json run-1/links.json run-2/pyspec.json run-2/links.json > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Write provenance
+        run: |
+          {
+            echo "MODE=native-v1.6.1-artifact-validation"
+            echo "SOURCE_REPO=${SOURCE_REPO}"
+            echo "SOURCE_COMMIT=${SOURCE_COMMIT}"
+            echo "EXPECTED_PYSPEC_SHA256=${EXPECTED_PYSPEC_SHA256}"
+            echo "EXPECTED_LINKS_SHA256=${EXPECTED_LINKS_SHA256}"
+            echo "EXPECTED_LINKS_ITEM_COUNT=${EXPECTED_LINKS_ITEM_COUNT}"
+            echo "WORKFLOW_REF=${{ github.ref }}"
+            echo "WORKFLOW_SHA=${{ github.sha }}"
+            echo "RUN_ID=${{ github.run_id }}"
+            echo "PYTHON_VERSION_FILE=consensus-specs/pyproject.toml"
+            echo "UV_VERSION=${UV_VERSION}"
+            echo "DEPENDENCY_INSTALL=uv sync --all-extras --frozen (uv.lock pinned)"
+            echo "GENERATOR=uv run python -m pysetup.generate_specs --all-forks --pyspec-json-output <output>"
+            echo "LINKS_GENERATOR=python3 scripts/generate_links.py <consensus-specs-dir> <output>"
+            echo "ACTION_PINS=actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1#v7.0.1;actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97#v7.0.0;astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9#v9.0.0;actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a#v7.0.1"
+          } > "$RUN_DIR/provenance.txt"
+          cat "$RUN_DIR/provenance.txt"
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-v1.6.1-validation-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/sila-specify-v1.6.1/SHA256SUMS
+            ${{ runner.temp }}/sila-specify-v1.6.1/provenance.txt
+            ${{ runner.temp }}/sila-specify-v1.6.1/validation.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Final validation status
+        run: |
+          if grep -q "^FAIL" "$RUN_DIR/validation.txt"; then
+            echo "=== NATIVE V1.6.1 ARTIFACT VALIDATION FAILED ==="
+            cat "$RUN_DIR/validation.txt"
+            exit 1
+          fi
+          echo "=== NATIVE V1.6.1 ARTIFACT VALIDATION PASSED ==="
+          cat "$RUN_DIR/validation.txt"

@@ -46,7 +46,6 @@ jobs:
       SOURCE_REPO: sila-chain/consensus-specs
       SOURCE_COMMIT: 26eb687542eaaf0ec554391c408801c0c938343c
       EXPECTED_PYSPEC_SHA256: 4a07089d82c5a55fc74ee38f540045a1517e0c895be8617e00b299e77cdfa3a8
-      RUN_DIR: ${{ runner.temp }}/sila-specify-nightly
       UV_VERSION: "0.12.0"
 
     steps:
@@ -85,6 +84,11 @@ jobs:
       - name: Sync frozen dependencies (uv.lock)
         working-directory: consensus-specs
         run: uv sync --all-extras --frozen
+
+      - name: Initialize runtime directory
+        run: |
+          set -euo pipefail
+          printf 'RUN_DIR=%s\n' "$RUNNER_TEMP/sila-specify-nightly" >> "$GITHUB_ENV"
 
       - name: Generate run-1 (pyspec + links)
         working-directory: consensus-specs

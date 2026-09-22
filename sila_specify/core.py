@@ -237,7 +237,7 @@ def diff(a_name, a_content, b_name, b_content):
 
 @functools.lru_cache()
 def get_pyspec(version="nightly"):
-    url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/main/pyspec/{version}/pyspec.json"
+    url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/HEAD/pyspec/{version}/pyspec.json"
     response = requests.get(url)
     response.raise_for_status()
     pyspec = response.json()
@@ -260,7 +260,7 @@ def get_links(version="nightly"):
     or None if no links.json is available for this version (e.g. older tags that
     predate link support).
     """
-    url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/main/pyspec/{version}/links.json"
+    url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/HEAD/pyspec/{version}/links.json"
     try:
         response = requests.get(url)
         response.raise_for_status()

@@ -58,7 +58,7 @@ def process(args):
 
 def list_tags(args):
     """List all available tags with their fork history."""
-    preset = getattr(args, 'preset', 'mainnet')
+    preset = getattr(args, 'preset', 'sila-mainnet')
     version = getattr(args, 'version', 'nightly')
     return _list_tags_with_history(args, preset, version)
 
@@ -220,7 +220,7 @@ def init(args):
 
         try:
             print(f"Initializing specrefs directory: {version}")
-            generate_specref_files(output_dir, version, "mainnet")
+            generate_specref_files(output_dir, version, "sila-mainnet")
             print(f"Successfully created .sila-specify.yml and {output_dir}/ directory")
             return 0
         except Exception as e:
@@ -300,7 +300,7 @@ def main():
         "--preset",
         type=str,
         help="Preset to use (mainnet or minimal)",
-        default="mainnet",
+        default="sila-mainnet",
     )
     list_forks_parser.add_argument(
         "--format",

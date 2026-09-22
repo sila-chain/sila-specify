@@ -57,6 +57,32 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Gate candidate source syntax and native identity
+        run: |
+          python3 -m compileall -q sila_specify scripts
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          forbidden_exact = {"mainnet", "ethspecify", "Ethereum"}
+          failures = []
+          for path in sorted(Path("sila_specify").glob("*.py")):
+              source = path.read_text(encoding="utf-8")
+              tree = ast.parse(source, filename=str(path))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                      if node.value in forbidden_exact:
+                          failures.append(f"{path}:{getattr(node, 'lineno', '?')}: {node.value!r}")
+          setup = Path("setup.py").read_text(encoding="utf-8")
+          if 'name="sila-specify"' not in setup:
+              failures.append("setup.py: missing native package name")
+          if 'https://github.com/sila-chain/sila-specify' not in setup:
+              failures.append("setup.py: missing native repository URL")
+          if failures:
+              raise SystemExit("\n".join(failures))
+          print("PASS candidate source syntax and native identity")
+          PY
+
       - name: Checkout pinned consensus-specs source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

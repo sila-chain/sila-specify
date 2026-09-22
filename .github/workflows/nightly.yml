@@ -14,9 +14,6 @@ name: Native Nightly Candidate Validation
 #   GATES=determinism pyspec, determinism links, native Sila preset identity, tracked nightly parity
 
 on:
-  push:
-    branches:
-      - "sila/sila-specify-latest-pure-20260922"
   pull_request:
   workflow_dispatch:
     inputs:
@@ -35,70 +32,6 @@ concurrency:
 
 
 jobs:
-  sync-native-nightly:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/sila/sila-specify-latest-pure-20260922' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: write
-    env:
-      SOURCE_REPO: sila-chain/consensus-specs
-      SOURCE_COMMIT: 22d7e29ae882f4dba4f4afb5efde24b886131a7a
-      UV_VERSION: "0.12.0"
-    steps:
-      - name: Checkout Sila work branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.ref_name }}
-
-      - name: Checkout pinned consensus-specs source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ env.SOURCE_REPO }}
-          ref: ${{ env.SOURCE_COMMIT }}
-          path: consensus-specs
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: consensus-specs/pyproject.toml
-
-      - name: Install uv (pinned)
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-        with:
-          version: ${{ env.UV_VERSION }}
-
-      - name: Sync frozen dependencies
-        working-directory: consensus-specs
-        run: uv sync --all-extras --frozen
-
-      - name: Generate tracked native nightly pair
-        working-directory: consensus-specs
-        run: |
-          uv run python -m pysetup.generate_specs --all-forks --pyspec-json-output "$GITHUB_WORKSPACE/pyspec/nightly/pyspec.json"
-          python3 "$GITHUB_WORKSPACE/scripts/generate_links.py" "$GITHUB_WORKSPACE/consensus-specs" "$GITHUB_WORKSPACE/pyspec/nightly/links.json"
-          python3 - "$GITHUB_WORKSPACE/pyspec/nightly/pyspec.json" <<'PY'
-          import json
-          import sys
-          data = json.load(open(sys.argv[1], encoding="utf-8"))
-          if "sila-mainnet" not in data or "mainnet" in data:
-              raise SystemExit("native Sila preset identity gate failed")
-          print("PASS native Sila preset identity")
-          PY
-
-      - name: Commit exact nightly artifacts if changed
-        run: |
-          git config user.name "SILA Network"
-          git config user.email "pssd500@gmail.com"
-          git add -- pyspec/nightly/pyspec.json pyspec/nightly/links.json
-          if git diff --cached --quiet; then
-            echo "Tracked nightly artifacts already current."
-          else
-            git commit -m "sync latest native Sila nightly artifacts"
-            git push origin HEAD:"${GITHUB_REF_NAME}"
-          fi
-
   notice:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.authorise_generation != 'YES' }}
     runs-on: ubuntu-latest

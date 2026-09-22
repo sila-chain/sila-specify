@@ -240,7 +240,15 @@ def get_pyspec(version="nightly"):
     url = f"https://raw.githubusercontent.com/sila-chain/sila-specify/main/pyspec/{version}/pyspec.json"
     response = requests.get(url)
     response.raise_for_status()
-    return response.json()
+    pyspec = response.json()
+
+    # Historical upstream snapshots predate native Sila preset naming.
+    # Normalize the legacy key in memory without mutating tracked artifacts.
+    legacy_preset = "mainnet"
+    if "sila-mainnet" not in pyspec and legacy_preset in pyspec:
+        pyspec["sila-mainnet"] = pyspec.pop(legacy_preset)
+
+    return pyspec
 
 
 @functools.lru_cache()

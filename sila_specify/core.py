@@ -77,17 +77,17 @@ def validate_exception_items(exceptions, version, require_exceptions_have_fork=F
             item_found = False
             if fork:
                 # Check specific fork
-                if ('mainnet' in pyspec and
-                    fork in pyspec['mainnet'] and
-                    pyspec_key in pyspec['mainnet'][fork] and
-                    item_name in pyspec['mainnet'][fork][pyspec_key]):
+                if ('sila-mainnet' in pyspec and
+                    fork in pyspec['sila-mainnet'] and
+                    pyspec_key in pyspec['sila-mainnet'][fork] and
+                    item_name in pyspec['sila-mainnet'][fork][pyspec_key]):
                     item_found = True
             else:
                 # Check if item exists in any fork
-                if 'mainnet' in pyspec:
-                    for check_fork in pyspec['mainnet']:
-                        if (pyspec_key in pyspec['mainnet'][check_fork] and
-                            item_name in pyspec['mainnet'][check_fork][pyspec_key]):
+                if 'sila-mainnet' in pyspec:
+                    for check_fork in pyspec['sila-mainnet']:
+                        if (pyspec_key in pyspec['sila-mainnet'][check_fork] and
+                            item_name in pyspec['sila-mainnet'][check_fork][pyspec_key]):
                             item_found = True
                             break
 
@@ -263,7 +263,7 @@ def get_links(version="nightly"):
 
 def get_previous_forks(fork, version="nightly"):
     pyspec = get_pyspec(version)
-    config_vars = pyspec["mainnet"][fork]["config_vars"]
+    config_vars = pyspec["sila-mainnet"][fork]["config_vars"]
     previous_forks = ["phase0"]
     for key in config_vars.keys():
         if key.endswith("_FORK_VERSION"):
@@ -372,13 +372,13 @@ def get_latest_fork(version="nightly"):
     """A helper function to get the latest non-sip fork."""
     pyspec = get_pyspec(version)
     forks = sorted(
-        [fork for fork in pyspec["mainnet"].keys() if not fork.startswith("sip")],
+        [fork for fork in pyspec["sila-mainnet"].keys() if not fork.startswith("sip")],
         key=lambda x: (x != "phase0", x)
     )
     return forks[-1] if forks else "phase0"
 
 
-def get_spec_item_changes(fork, preset="mainnet", version="nightly"):
+def get_spec_item_changes(fork, preset="sila-mainnet", version="nightly"):
     """
     Compare spec items in the given fork with previous forks to detect changes.
     Returns dict with categories containing items marked as (new) or (modified).
@@ -444,7 +444,7 @@ def _get_item_status(item_name, current_content, category, previous_forks, pyspe
     return None
 
 
-def get_spec_item_history(preset="mainnet", version="nightly"):
+def get_spec_item_history(preset="sila-mainnet", version="nightly"):
     """
     Get the complete history of all spec items across all forks.
     Returns dict with categories containing items and their fork history.
@@ -524,7 +524,7 @@ def parse_common_attributes(attributes, config=None):
     try:
         preset = attributes["preset"]
     except KeyError:
-        preset = "mainnet"
+        preset = "sila-mainnet"
 
     try:
         version = attributes["version"]
@@ -1518,7 +1518,7 @@ def process_generated_specrefs(specrefs, exceptions, version):
     }
 
     # Get spec history for coverage checking
-    history = get_spec_item_history("mainnet", version)
+    history = get_spec_item_history("sila-mainnet", version)
 
     # Check coverage for each type
     total_found = 0
@@ -1610,7 +1610,7 @@ def process_generated_specrefs(specrefs, exceptions, version):
     return overall_success, results
 
 
-def check_coverage(yaml_file, tag_type, exceptions, preset="mainnet", version="nightly"):
+def check_coverage(yaml_file, tag_type, exceptions, preset="sila-mainnet", version="nightly"):
     """
     Check that all spec items from sila-specify have corresponding tags in the YAML file.
     Returns (found_count, total_count, missing_items)
@@ -1747,7 +1747,7 @@ def run_checks(project_dir, config):
         tag_types_found, _ = extract_spec_tags_from_yaml(yaml_path)
 
         # Check for preset indicators in filename
-        preset = "mainnet"  # default preset
+        preset = "sila-mainnet"  # default preset
         if 'minimal' in filename.lower():
             preset = "minimal"
 
@@ -1767,7 +1767,7 @@ def run_checks(project_dir, config):
 
             # Store results using filename as section name
             section_name = filename.replace('.yml', '').replace('-', ' ').title()
-            if preset != "mainnet":
+            if preset != "sila-mainnet":
                 section_name += f" ({preset.title()})"
 
             results[section_name] = {
@@ -1828,7 +1828,7 @@ def run_checks(project_dir, config):
 
             # Store results using filename as section name
             section_name = filename.replace('.yml', '').replace('-', ' ').title()
-            if preset != "mainnet":
+            if preset != "sila-mainnet":
                 section_name += f" ({preset.title()})"
 
             results[section_name] = {
@@ -1946,7 +1946,7 @@ def add_missing_spec_items_to_yaml_files(project_dir, config, specrefs_files):
     Ensures all spec items from the specification exist in YAML files with sources: []
     """
     version = config.get('version', 'nightly')
-    preset = 'mainnet'  # Could make this configurable
+    preset = 'sila-mainnet'  # Could make this configurable
     specrefs_config = config.get('specrefs', {})
 
     # Resolve exceptions (support root or specrefs section, but not both)
@@ -2150,7 +2150,7 @@ def generate_config_file(version="nightly"):
             f.write(line.rstrip() + '\n')
 
 
-def generate_specref_files(output_dir, version="nightly", preset="mainnet"):
+def generate_specref_files(output_dir, version="nightly", preset="sila-mainnet"):
     """
     Generate specref YAML files without sources for manual mapping.
     Creates a basic directory structure with empty sources.

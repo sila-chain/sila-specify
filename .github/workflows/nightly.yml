@@ -14,6 +14,9 @@ name: Native Nightly Candidate Validation
 #   GATES=determinism pyspec, determinism links, native Sila preset identity, tracked nightly parity
 
 on:
+  push:
+    branches:
+      - "sila/**"
   pull_request:
   workflow_dispatch:
     inputs:

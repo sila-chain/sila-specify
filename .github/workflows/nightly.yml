@@ -119,7 +119,7 @@ jobs:
           echo "CHECKED_OUT_HEAD=${HEAD}"
           if [ "${HEAD}" != "${SOURCE_COMMIT}" ]; then
             echo "FAIL_REASON=CHECKOUT_SHA_MISMATCH"
-            exit 1
+            false
           fi
 
       - name: Set up Python
@@ -231,7 +231,7 @@ jobs:
           if grep -q "^FAIL" "$RUN_DIR/validation.txt"; then
             echo "=== NATIVE NIGHTLY VALIDATION FAILED ==="
             cat "$RUN_DIR/validation.txt"
-            exit 1
+            false
           fi
           echo "=== NATIVE NIGHTLY VALIDATION PASSED ==="
           cat "$RUN_DIR/validation.txt"

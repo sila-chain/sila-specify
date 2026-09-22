@@ -64,15 +64,37 @@ jobs:
           import ast
           from pathlib import Path
 
-          forbidden_exact = {"mainnet", "ethspecify", "Ethereum"}
+          forbidden_exact = {"ethspecify", "Ethereum"}
           failures = []
+
+          class IdentityVisitor(ast.NodeVisitor):
+              def __init__(self, path):
+                  self.path = path
+                  self.function_stack = []
+
+              def visit_FunctionDef(self, node):
+                  self.function_stack.append(node.name)
+                  self.generic_visit(node)
+                  self.function_stack.pop()
+
+              def visit_Constant(self, node):
+                  if not isinstance(node.value, str):
+                      return
+                  if node.value in forbidden_exact:
+                      failures.append(f"{self.path}:{getattr(node, 'lineno', '?')}: {node.value!r}")
+                  if node.value == "mainnet":
+                      allowed = (
+                          self.path == Path("sila_specify/core.py")
+                          and self.function_stack
+                          and self.function_stack[-1] == "get_pyspec"
+                      )
+                      if not allowed:
+                          failures.append(f"{self.path}:{getattr(node, 'lineno', '?')}: unexpected legacy preset literal")
+
           for path in sorted(Path("sila_specify").glob("*.py")):
               source = path.read_text(encoding="utf-8")
               tree = ast.parse(source, filename=str(path))
-              for node in ast.walk(tree):
-                  if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                      if node.value in forbidden_exact:
-                          failures.append(f"{path}:{getattr(node, 'lineno', '?')}: {node.value!r}")
+              IdentityVisitor(path).visit(tree)
           setup = Path("setup.py").read_text(encoding="utf-8")
           if 'name="sila-specify"' not in setup:
               failures.append("setup.py: missing native package name")

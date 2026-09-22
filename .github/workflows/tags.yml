@@ -14,10 +14,11 @@ name: Native v1.6.1 Artifact Validation
 #   LINKS_GENERATOR=python3 scripts/generate_links.py <consensus-specs-dir> <out>
 #   DEPENDENCY_INSTALL=uv sync --all-extras --frozen (uv.lock pinned)
 #   DETERMINISM=double generation into $RUNNER_TEMP/sila-specify-v1.6.1/run-{1,2}, cmp byte-identical
-#   ACTION=dispatch only; authorise_generation default NO (no generation without explicit YES)
-#   GATES=determinism pyspec, determinism links, expected pyspec sha256, expected links sha256, links item count
+#   ACTION=pull requests validate automatically; manual dispatch remains default-deny
+#   GATES=determinism pyspec, determinism links, native Sila preset identity, expected hashes, links item count, tracked pair parity
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       authorise_generation:
@@ -29,9 +30,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   notice:
-    if: ${{ inputs.authorise_generation != 'YES' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.authorise_generation != 'YES' }}
     runs-on: ubuntu-latest
     steps:
       - name: Skipped (not authorised)
@@ -39,7 +44,7 @@ jobs:
           echo "Native v1.6.1 artifact validation skipped: authorise_generation != 'YES' (default NO)."
 
   validate-v1-6-1:
-    if: ${{ inputs.authorise_generation == 'YES' }}
+    if: ${{ github.event_name == 'pull_request' || inputs.authorise_generation == 'YES' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -73,7 +78,7 @@ jobs:
           echo "CHECKED_OUT_HEAD=${HEAD}"
           if [ "${HEAD}" != "${SOURCE_COMMIT}" ]; then
             echo "FAIL_REASON=CHECKOUT_SHA_MISMATCH"
-            exit 1
+            false
           fi
 
       - name: Set up Python
@@ -92,7 +97,6 @@ jobs:
 
       - name: Initialize runtime directory
         run: |
-          set -euo pipefail
           printf 'RUN_DIR=%s\n' "$RUNNER_TEMP/sila-specify-v1.6.1" >> "$GITHUB_ENV"
 
       - name: Generate run-1 (pyspec + links)
@@ -123,6 +127,19 @@ jobs:
           else
             echo "FAIL determinism links (run-1 != run-2)" >> "$RUN_DIR/validation.txt"
           fi
+
+      - name: Gate native Sila preset identity
+        run: |
+          python3 - "$RUN_DIR/run-1/pyspec.json" <<'PY'
+          import json
+          import sys
+          data = json.load(open(sys.argv[1], encoding="utf-8"))
+          if "sila-mainnet" not in data:
+              raise SystemExit("missing sila-mainnet preset")
+          if "mainnet" in data:
+              raise SystemExit("legacy mainnet preset present")
+          print("PASS native Sila preset identity")
+          PY
 
       - name: Gate expected pyspec sha256
         run: |
@@ -155,7 +172,6 @@ jobs:
         env:
           OUT_ROOT: ${{ runner.temp }}/sila-specify-v1.6.1
         run: |
-          set -euo pipefail
           cmp "$OUT_ROOT/run-1/pyspec.json" "pyspec/v1.6.1/pyspec.json"
           cmp "$OUT_ROOT/run-1/links.json" "pyspec/v1.6.1/links.json"
           {
@@ -208,7 +224,7 @@ jobs:
           if grep -q "^FAIL" "$RUN_DIR/validation.txt"; then
             echo "=== NATIVE V1.6.1 ARTIFACT VALIDATION FAILED ==="
             cat "$RUN_DIR/validation.txt"
-            exit 1
+            false
           fi
           echo "=== NATIVE V1.6.1 ARTIFACT VALIDATION PASSED ==="
           cat "$RUN_DIR/validation.txt"

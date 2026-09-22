@@ -5,16 +5,16 @@ name: Native Nightly Candidate Validation
 # Locked plan:
 #   MODE=native-nightly-validation
 #   SOURCE_REPO=sila-chain/consensus-specs
-#   SOURCE_COMMIT=26eb687542eaaf0ec554391c408801c0c938343c
-#   EXPECTED_PYSPEC_SHA256=4a07089d82c5a55fc74ee38f540045a1517e0c895be8617e00b299e77cdfa3a8
+#   SOURCE_COMMIT=22d7e29ae882f4dba4f4afb5efde24b886131a7a
 #   GENERATOR=uv run python -m pysetup.generate_specs --all-forks --pyspec-json-output <out>
 #   LINKS_GENERATOR=python3 scripts/generate_links.py <consensus-specs-dir> <out>
 #   DEPENDENCY_INSTALL=uv sync --all-extras --frozen (uv.lock pinned)
 #   DETERMINISM=double generation into $RUNNER_TEMP/sila-specify-nightly/run-{1,2}, cmp byte-identical
-#   ACTION=dispatch only; authorise_generation default NO (no generation without explicit YES)
-#   GATES=determinism pyspec, determinism links, expected pyspec sha256
+#   ACTION=pull requests validate automatically; manual dispatch remains default-deny
+#   GATES=determinism pyspec, determinism links, native Sila preset identity, tracked nightly parity
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       authorise_generation:
@@ -26,9 +26,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
 jobs:
   notice:
-    if: ${{ inputs.authorise_generation != 'YES' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.authorise_generation != 'YES' }}
     runs-on: ubuntu-latest
     steps:
       - name: Skipped (not authorised)
@@ -36,7 +41,7 @@ jobs:
           echo "Native nightly candidate validation skipped: authorise_generation != 'YES' (default NO)."
 
   validate-native-nightly:
-    if: ${{ inputs.authorise_generation == 'YES' }}
+    if: ${{ github.event_name == 'pull_request' || inputs.authorise_generation == 'YES' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -44,8 +49,7 @@ jobs:
         shell: bash
     env:
       SOURCE_REPO: sila-chain/consensus-specs
-      SOURCE_COMMIT: 26eb687542eaaf0ec554391c408801c0c938343c
-      EXPECTED_PYSPEC_SHA256: 4a07089d82c5a55fc74ee38f540045a1517e0c895be8617e00b299e77cdfa3a8
+      SOURCE_COMMIT: 22d7e29ae882f4dba4f4afb5efde24b886131a7a
       UV_VERSION: "0.12.0"
 
     steps:
@@ -53,6 +57,54 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Gate candidate source syntax and native identity
+        run: |
+          python3 -m compileall -q sila_specify scripts
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          forbidden_exact = {"ethspecify", "Ethereum"}
+          failures = []
+
+          class IdentityVisitor(ast.NodeVisitor):
+              def __init__(self, path):
+                  self.path = path
+                  self.function_stack = []
+
+              def visit_FunctionDef(self, node):
+                  self.function_stack.append(node.name)
+                  self.generic_visit(node)
+                  self.function_stack.pop()
+
+              def visit_Constant(self, node):
+                  if not isinstance(node.value, str):
+                      return
+                  if node.value in forbidden_exact:
+                      failures.append(f"{self.path}:{getattr(node, 'lineno', '?')}: {node.value!r}")
+                  if node.value == "mainnet":
+                      allowed = (
+                          self.path == Path("sila_specify/core.py")
+                          and self.function_stack
+                          and self.function_stack[-1] == "get_pyspec"
+                      )
+                      if not allowed:
+                          failures.append(f"{self.path}:{getattr(node, 'lineno', '?')}: unexpected legacy preset literal")
+
+          for path in sorted(Path("sila_specify").glob("*.py")):
+              source = path.read_text(encoding="utf-8")
+              tree = ast.parse(source, filename=str(path))
+              IdentityVisitor(path).visit(tree)
+          setup = Path("setup.py").read_text(encoding="utf-8")
+          if 'name="sila-specify"' not in setup:
+              failures.append("setup.py: missing native package name")
+          if 'https://github.com/sila-chain/sila-specify' not in setup:
+              failures.append("setup.py: missing native repository URL")
+          if failures:
+              raise SystemExit("\n".join(failures))
+          print("PASS candidate source syntax and native identity")
+          PY
 
       - name: Checkout pinned consensus-specs source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,7 +120,7 @@ jobs:
           echo "CHECKED_OUT_HEAD=${HEAD}"
           if [ "${HEAD}" != "${SOURCE_COMMIT}" ]; then
             echo "FAIL_REASON=CHECKOUT_SHA_MISMATCH"
-            exit 1
+            false
           fi
 
       - name: Set up Python
@@ -87,7 +139,6 @@ jobs:
 
       - name: Initialize runtime directory
         run: |
-          set -euo pipefail
           printf 'RUN_DIR=%s\n' "$RUNNER_TEMP/sila-specify-nightly" >> "$GITHUB_ENV"
 
       - name: Generate run-1 (pyspec + links)
@@ -119,14 +170,24 @@ jobs:
             echo "FAIL determinism links (run-1 != run-2)" >> "$RUN_DIR/validation.txt"
           fi
 
-      - name: Gate expected pyspec sha256
+      - name: Gate native Sila preset identity
         run: |
-          ACTUAL=$(sha256sum "$RUN_DIR/run-1/pyspec.json" | awk '{print $1}')
-          if [ "$ACTUAL" = "${EXPECTED_PYSPEC_SHA256}" ]; then
-            echo "PASS expected pyspec sha256 (${EXPECTED_PYSPEC_SHA256})" >> "$RUN_DIR/validation.txt"
-          else
-            echo "FAIL expected pyspec sha256 (${ACTUAL} != ${EXPECTED_PYSPEC_SHA256})" >> "$RUN_DIR/validation.txt"
-          fi
+          python3 - "$RUN_DIR/run-1/pyspec.json" <<'PY'
+          import json
+          import sys
+          data = json.load(open(sys.argv[1], encoding="utf-8"))
+          if "sila-mainnet" not in data:
+              raise SystemExit("missing sila-mainnet preset")
+          if "mainnet" in data:
+              raise SystemExit("legacy mainnet preset present")
+          print("PASS native Sila preset identity")
+          PY
+
+      - name: Gate tracked nightly parity
+        run: |
+          cmp "$RUN_DIR/run-1/pyspec.json" "pyspec/nightly/pyspec.json"
+          cmp "$RUN_DIR/run-1/links.json" "pyspec/nightly/links.json"
+          echo "PASS tracked nightly pair matches latest pinned Sila consensus-specs" >> "$RUN_DIR/validation.txt"
 
       - name: Write SHA256SUMS
         run: |
@@ -140,7 +201,6 @@ jobs:
             echo "MODE=native-nightly-validation"
             echo "SOURCE_REPO=${SOURCE_REPO}"
             echo "SOURCE_COMMIT=${SOURCE_COMMIT}"
-            echo "EXPECTED_PYSPEC_SHA256=${EXPECTED_PYSPEC_SHA256}"
             echo "WORKFLOW_REF=${{ github.ref }}"
             echo "WORKFLOW_SHA=${{ github.sha }}"
             echo "RUN_ID=${{ github.run_id }}"
@@ -162,6 +222,8 @@ jobs:
             ${{ runner.temp }}/sila-specify-nightly/SHA256SUMS
             ${{ runner.temp }}/sila-specify-nightly/provenance.txt
             ${{ runner.temp }}/sila-specify-nightly/validation.txt
+            ${{ runner.temp }}/sila-specify-nightly/run-1/pyspec.json
+            ${{ runner.temp }}/sila-specify-nightly/run-1/links.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -170,7 +232,7 @@ jobs:
           if grep -q "^FAIL" "$RUN_DIR/validation.txt"; then
             echo "=== NATIVE NIGHTLY VALIDATION FAILED ==="
             cat "$RUN_DIR/validation.txt"
-            exit 1
+            false
           fi
           echo "=== NATIVE NIGHTLY VALIDATION PASSED ==="
           cat "$RUN_DIR/validation.txt"

@@ -243,7 +243,7 @@ def is_fully_withdrawable_validator(validator: Validator, balance: Gwei, epoch: 
     Check if ``validator`` is fully withdrawable.
     """
     return (
-        has_eth1_withdrawal_credential(validator)
+        has_sil1_withdrawal_credential(validator)
         and validator.withdrawable_epoch <= epoch
         and balance > 0
     )
@@ -256,8 +256,8 @@ This style displays a link to the specification item's source on
 GitHub. For a tagged `version`, the link uses the tag as the ref:
 
 ```
-<spec ssz_object="BeaconState" fork="gloas" version="v1.7.0-alpha.11" style="link">
-https://github.com/sila-chain/consensus-specs/blob/v1.7.0-alpha.11/specs/gloas/beacon-chain.md?plain=1#L411-L468
+<spec fn="is_fully_withdrawable_validator" fork="capella" version="v1.6.1" style="link">
+https://github.com/sila-chain/consensus-specs/blob/v1.6.1/specs/capella/beacon-chain.md?plain=1#L256-L265
 </spec>
 ```
 

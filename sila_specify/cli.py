@@ -299,7 +299,7 @@ def main():
     list_forks_parser.add_argument(
         "--preset",
         type=str,
-        help="Preset to use (mainnet or minimal)",
+        help="Preset to use (sila-mainnet or minimal)",
         default="sila-mainnet",
     )
     list_forks_parser.add_argument(

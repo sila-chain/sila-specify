@@ -30,6 +30,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   notice:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.authorise_generation != 'YES' }}

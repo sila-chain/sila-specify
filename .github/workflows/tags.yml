@@ -14,13 +14,10 @@ name: Native v1.6.1 Artifact Validation
 #   LINKS_GENERATOR=python3 scripts/generate_links.py <consensus-specs-dir> <out>
 #   DEPENDENCY_INSTALL=uv sync --all-extras --frozen (uv.lock pinned)
 #   DETERMINISM=double generation into $RUNNER_TEMP/sila-specify-v1.6.1/run-{1,2}, cmp byte-identical
-#   ACTION=dispatch only; authorise_generation default NO (no generation without explicit YES)
-#   GATES=determinism pyspec, determinism links, expected pyspec sha256, expected links sha256, links item count
+#   ACTION=pull requests validate automatically; manual dispatch remains default-deny
+#   GATES=determinism pyspec, determinism links, native Sila preset identity, expected hashes, links item count, tracked pair parity
 
 on:
-  push:
-    branches:
-      - "sila/**"
   pull_request:
   workflow_dispatch:
     inputs:
@@ -126,6 +123,19 @@ jobs:
           else
             echo "FAIL determinism links (run-1 != run-2)" >> "$RUN_DIR/validation.txt"
           fi
+
+      - name: Gate native Sila preset identity
+        run: |
+          python3 - "$RUN_DIR/run-1/pyspec.json" <<'PY'
+          import json
+          import sys
+          data = json.load(open(sys.argv[1], encoding="utf-8"))
+          if "sila-mainnet" not in data:
+              raise SystemExit("missing sila-mainnet preset")
+          if "mainnet" in data:
+              raise SystemExit("legacy mainnet preset present")
+          print("PASS native Sila preset identity")
+          PY
 
       - name: Gate expected pyspec sha256
         run: |

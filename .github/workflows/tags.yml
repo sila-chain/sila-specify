@@ -18,6 +18,9 @@ name: Native v1.6.1 Artifact Validation
 #   GATES=determinism pyspec, determinism links, expected pyspec sha256, expected links sha256, links item count
 
 on:
+  push:
+    branches:
+      - "sila/**"
   pull_request:
   workflow_dispatch:
     inputs:
